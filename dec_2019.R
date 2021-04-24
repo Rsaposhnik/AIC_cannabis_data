@@ -5,9 +5,13 @@
 #Objective: Clean and prepare Weedmaps data scrape to generate disctinct datasets for
 #           future econometric and statistical analyses
 
-######### User Input (PUT DATE HERE)
+######### User Input 
 
+#(PUT Scrape Date HERE)
 scrape_date <- "12_01_2019"
+
+#(PUT path of data scrape here)
+data_path <- "/Users/rsaposhnik/Documents/AIC/data"
 
 # Install Packges and fetch library -----------------------------------------------------
 # install.packages("tigris")
@@ -22,10 +26,10 @@ library("tidyverse")
 library("glue")
 
 #################### Load in XLSX of Dispensaries
-dispensaries_sf <- read_csv(glue("/Users/rsaposhnik/Documents/AIC/data/scraped_data/{scrape_date}/dispensary_services.csv")) %>%
+dispensaries_sf <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/dispensary_services.csv")) %>%
   mutate(id_for_merge = glue("storefront_{ID}") )
 
-dispensaries_delivery <- read_csv(glue("/Users/rsaposhnik/Documents/AIC/data/scraped_data/{scrape_date}/delivery_services.csv")) %>%
+dispensaries_delivery <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/delivery_services.csv")) %>%
   mutate(id_for_merge = glue("delivery_{ID}") )
                                                           
 all_dispensary_info <- rbind(dispensaries_sf, dispensaries_delivery)
