@@ -104,6 +104,7 @@ mapped_dispensaries <- st_join(disp_lat_lon, df_county_subs, join = st_within) %
   select(id_for_merge, county_name)
 
 rm(disp_lat_lon)
+rm(df_county_subs)
 #Remove geometry
 mapped_dispensaries <- st_set_geometry(mapped_dispensaries, NULL)
 
@@ -149,7 +150,7 @@ mapped_dispensaries <- st_join(disp_lat_lon, states_geom_df, join = st_within) %
   rename("corrected_state" = "STUSPS")
 
 rm(disp_lat_lon)
-
+rm(states_geom_df)
 #Remove geometry
 mapped_dispensaries <- st_set_geometry(mapped_dispensaries, NULL)
 
@@ -173,7 +174,6 @@ all_dispensary_info <- all_dispensary_info %>%
          corrected_state,
          county_name,
          everything())
-
 
 
 
