@@ -7,10 +7,10 @@
 
 ######### User Input 
 
-#(INPUT Scrape Date HERE)
-scrape_date <- "12_01_2019"
+#(INPUT Scrape Dates HERE)
+scrape_dates <- c("12_01_2019")
 
-#(INPUT path of data scrape here)
+#(INPUT path of data scrapes here)
 data_path <- "/Users/rsaposhnik/Documents/AIC/data"
 
 # Install Packges and fetch library -----------------------------------------------------
@@ -28,6 +28,13 @@ library("glue")
 library("readxl")
 library(ggplot2)
 
+#Begin For-Loop to create datasets for all scrape dates 
+
+for (scrape_date in scrape_dates) {
+
+  
+### SECTION A - Merchant Information (Storefront Dispensaries and Delivery Dispensaries)
+  
 # A1: LOAD IN DISPENSARY (MERCHANT) DETAILS FOR DELIV AND STOREFRONT -----------------------------------------------------
 
 dispensaries_sf <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/dispensary_services.csv")) %>%
@@ -42,7 +49,7 @@ rm(dispensaries_sf,
    dispensaries_delivery)
 
 
-# A2: ADD IN COUNTY-MAPPING TO MERCHANT DETAILS ACROSS USA (USING LAT/LON)-----------------------------------------------------
+# A2: STANDARDIZE AND ADD COUNTY-MAPPING TO MERCHANT DETAILS ACROSS USA (USING LAT/LON)-----------------------------------------------------
 
 ########################### A2.i - Map all US ZIP codes to county subdivisions (subs)
 
@@ -123,7 +130,7 @@ all_dispensary_info <- all_dispensary_info %>%
 rm(mapped_dispensaries)
 
 
-# A3: STANDARDIZE STATE NAME ACROSS DATASET (USING SAME LAT/LON FROM DISPENSARIES) -----------------------------------------------------
+# A3: STANDARDIZE STATE NAME ACROSS DATASET (USING SAME LAT/LON FROM DISPENSARIES), Remove non-US Entries -----------------------------------------------------
 
 ########### A3.i Read in Geospatial map of states across USA, and select state Abbrev and geometry
 
@@ -168,13 +175,117 @@ all_dispensary_info <- all_dispensary_info %>%
 
 rm(mapped_dispensaries)
 
-#Reorganize Data
+#Reorganize Data and filter our non-US entries
 all_dispensary_info <- all_dispensary_info %>% 
   select(State,
          corrected_state,
          county_name,
-         everything())
+         City, 
+         `Zip Code`,
+         everything()) %>%
+  filter(!is.na(corrected_state))
+
+# A4: RENAME VARIABLES, SELECT RELEVANT VARIABLES  -----------------------------------------------------
+
+########## Rename Variables, select relevant variables
+df_dispensaries <- all_dispensary_info %>%
+  rename("phone_number" = "Phone Number",
+         "slug" = "Slug",
+         "city" = "City",
+         "lic_type_1" = "License Type 1",
+         "lic_num_1" = "License Number 1",
+         "lic_type_2" = "License Type 2",
+         "lic_num_2" = "License Number 2",
+         "lic_type_3" = "License Type 3",
+         "lic_num_3" = "License Number 3",
+         "lic_type_4" = "License Type 4",
+         "lic_num_4" = "License Number 4") %>%
+  select(id_for_merge,
+         corrected_state,
+         county_name,
+         city,
+         slug,
+         phone_number,
+         lic_type_1,
+         lic_num_1,
+         lic_type_2,
+         lic_num_2,
+         lic_type_3,
+         lic_num_3,
+         lic_type_4,
+         lic_num_4) %>%
+  mutate(id_for_merge = as.character(id_for_merge))
+
+glimpse(df_dispensaries)
+
+# A5: REFINE LICENSING DETALIS----------------------------------------------------
+
+############ Make blank cells equal to "- for License Numbers
+df_dispensaries <- df_dispensaries %>%
+  mutate(lic_num_1 = ifelse(is.na(lic_num_1),"-", lic_num_1),
+         lic_type_1 = ifelse(lic_num_1 == "-", "-", lic_type_1),
+         lic_num_2 = ifelse(is.na(lic_num_2),"-", lic_num_2),
+         lic_type_2 = ifelse(lic_num_2 == "-", "-", lic_type_2),
+         lic_num_3 = ifelse(is.na(lic_num_3),"-", lic_num_3),
+         lic_type_3 = ifelse(lic_num_3 == "-", "-", lic_type_3),
+         lic_num_4 = ifelse(is.na(lic_num_4),"-", lic_num_4),
+         lic_type_4 = ifelse(lic_num_4 == "-", "-", lic_type_4)
+  )
+
+############ Add License Type Variable Checks [ (A) Is Lic valid? ]  (B) What is the Lic type?
+df_dispensaries <- df_dispensaries %>%
+  mutate(lic_category_1 = case_when(str_detect(lic_num_1, regex("\\bLIC\\b", ignore_case = TRUE)) ~ "LIC",
+                                    str_detect(lic_num_1, regex("\\bTEMP\\b", ignore_case = TRUE)) ~"TEMP",
+                                    lic_num_1 == "-" ~ "-",
+                                    TRUE ~ "Other License"
+  ),
+  lic_category_2 = case_when(str_detect(lic_num_2, regex("\\bLIC\\b", ignore_case = TRUE)) ~ "LIC",
+                             str_detect(lic_num_2, regex("\\bTEMP\\b", ignore_case = TRUE)) ~"TEMP",
+                             lic_num_2 == "-" ~ "-",
+                             TRUE ~ "Other License"
+  ),
+  lic_category_3 = case_when(str_detect(lic_num_3, regex("\\bLIC\\b", ignore_case = TRUE)) ~ "LIC",
+                             str_detect(lic_num_3, regex("\\bTEMP\\b", ignore_case = TRUE)) ~"TEMP",
+                             lic_num_3 == "-" ~ "-",
+                             TRUE ~ "Other License"
+  ),
+  lic_category_4 = case_when(str_detect(lic_num_4, regex("\\bLIC\\b", ignore_case = TRUE)) ~ "LIC",
+                             str_detect(lic_num_4, regex("\\bTEMP\\b", ignore_case = TRUE)) ~"TEMP",
+                             lic_num_4 == "-" ~ "-",
+                             TRUE ~ "Other License"
+  )
+  )
+
+############ Re-arrange data
+
+df_dispensaries <- df_dispensaries %>%
+  select("id_for_merge",
+         "corrected_state",
+         "county_name",
+         "city",
+         "slug",
+         "phone_number",
+         "lic_type_1",
+         "lic_num_1",
+         "lic_category_1",
+         "lic_type_2",
+         "lic_num_2",
+         "lic_category_2",
+         "lic_type_3",
+         "lic_num_3",
+         "lic_category_3",
+         "lic_type_4",
+         "lic_num_4",
+         "lic_category_4")
+
+
+write_rds(disp_df,(header$datasets("/dec_2019/3_dispensary_ids_with_license_flags_dec_2019.rds")))
+
+
+### SECTION B - Cannabis Price Information (Storefront and Delivery)
+
+#
 
 
 
-
+}
