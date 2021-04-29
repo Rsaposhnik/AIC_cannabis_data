@@ -19,6 +19,8 @@ data_path <- "/Users/rsaposhnik/Documents/AIC/data"
 # install.packages('devtools')
 # install.packages('zipcodeR')
 # install.packages("tidyverse")
+# install.packages("writexl")
+# install.packages("lubridate")
 
 library("tigris")
 library('devtools')
@@ -27,14 +29,14 @@ library("tidyverse")
 library("glue")
 library("readxl")
 library(ggplot2)
+library("writexl")
+library(lubridate)
+
 
 #Begin For-Loop to create datasets for all scrape dates 
-
 for (scrape_date in scrape_dates) {
-
   
 ### SECTION A - Merchant Information (Storefront Dispensaries and Delivery Dispensaries)
-  
 # A1: LOAD IN DISPENSARY (MERCHANT) DETAILS FOR DELIV AND STOREFRONT -----------------------------------------------------
 
 dispensaries_sf <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/dispensary_services.csv")) %>%
@@ -185,10 +187,10 @@ all_dispensary_info <- all_dispensary_info %>%
          everything()) %>%
   filter(!is.na(corrected_state))
 
-# A4: RENAME VARIABLES, SELECT RELEVANT VARIABLES  -----------------------------------------------------
+# A4: RENAME RELVEANT VARIABLES,-----------------------------------------------------
 
-########## Rename Variables, select relevant variables
-df_dispensaries <- all_dispensary_info %>%
+########## Rename Variables
+all_dispensary_info <- all_dispensary_info %>%
   rename("phone_number" = "Phone Number",
          "slug" = "Slug",
          "city" = "City",
@@ -200,28 +202,14 @@ df_dispensaries <- all_dispensary_info %>%
          "lic_num_3" = "License Number 3",
          "lic_type_4" = "License Type 4",
          "lic_num_4" = "License Number 4") %>%
-  select(id_for_merge,
-         corrected_state,
-         county_name,
-         city,
-         slug,
-         phone_number,
-         lic_type_1,
-         lic_num_1,
-         lic_type_2,
-         lic_num_2,
-         lic_type_3,
-         lic_num_3,
-         lic_type_4,
-         lic_num_4) %>%
   mutate(id_for_merge = as.character(id_for_merge))
 
 glimpse(df_dispensaries)
 
-# A5: REFINE LICENSING DETALIS----------------------------------------------------
+# A5: REFINE LICENSING DETALIS, ADD SCRARPE DATE TO VARIABLE----------------------------------------------------
 
 ############ Make blank cells equal to "- for License Numbers
-df_dispensaries <- df_dispensaries %>%
+all_dispensary_info <- all_dispensary_info %>%
   mutate(lic_num_1 = ifelse(is.na(lic_num_1),"-", lic_num_1),
          lic_type_1 = ifelse(lic_num_1 == "-", "-", lic_type_1),
          lic_num_2 = ifelse(is.na(lic_num_2),"-", lic_num_2),
@@ -233,7 +221,7 @@ df_dispensaries <- df_dispensaries %>%
   )
 
 ############ Add License Type Variable Checks [ (A) Is Lic valid? ]  (B) What is the Lic type?
-df_dispensaries <- df_dispensaries %>%
+all_dispensary_info <- all_dispensary_info %>%
   mutate(lic_category_1 = case_when(str_detect(lic_num_1, regex("\\bLIC\\b", ignore_case = TRUE)) ~ "LIC",
                                     str_detect(lic_num_1, regex("\\bTEMP\\b", ignore_case = TRUE)) ~"TEMP",
                                     lic_num_1 == "-" ~ "-",
@@ -256,9 +244,21 @@ df_dispensaries <- df_dispensaries %>%
   )
   )
 
-############ Re-arrange data
 
-df_dispensaries <- df_dispensaries %>%
+### Add Scrape Date to Variable
+all_dispensary_info <- all_dispensary_info %>%
+  mutate(date_of_scrape = mdy(scrape_date), 
+         yr = year(date_of_scrape),
+         mnth = month(date_of_scrape))
+  
+# A6: EXPORT DATASET; RE-ARRANGE DATA FOR JOIN ONTO PRICING DATASET ----------------------------------------------------
+
+###########Export Merchant Dataset
+write_xlsx(all_dispensary_info,glue("{data_path}/datasets/cleaned_merchant_data/{scrape_date}.xlsx"))
+
+############ Re-arrange data for merge onto pricing dataset
+
+df_dispensaries <- all_dispensary_info %>%
   select("id_for_merge",
          "corrected_state",
          "county_name",
@@ -278,11 +278,10 @@ df_dispensaries <- df_dispensaries %>%
          "lic_num_4",
          "lic_category_4")
 
+glimpse(df_dispensaries)
 
-write_rds(disp_df,(header$datasets("/dec_2019/3_dispensary_ids_with_license_flags_dec_2019.rds")))
-
-
-### SECTION B - Cannabis Price Information (Storefront and Delivery)
+#############------------
+### SECTION B - Cannabis Price Information (Storefront and Delivery) ----------------------------------
 
 #
 
