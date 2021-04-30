@@ -204,7 +204,6 @@ all_dispensary_info <- all_dispensary_info %>%
          "lic_num_4" = "License Number 4") %>%
   mutate(id_for_merge = as.character(id_for_merge))
 
-glimpse(df_dispensaries)
 
 # A5: REFINE LICENSING DETALIS, ADD SCRARPE DATE TO VARIABLE----------------------------------------------------
 
@@ -275,15 +274,28 @@ df_dispensaries <- all_dispensary_info %>%
          "lic_num_3",
          "lic_category_3",
          "lic_type_4",
-         "lic_num_4",
-         "lic_category_4")
+         "lic_num_4")
 
-glimpse(df_dispensaries)
 
 #############------------
-### SECTION B - Cannabis Price Information (Storefront and Delivery) ----------------------------------
+### SECTION B - Cannabis Price Information (Storefront and Delivery) 
 
-#
+### B1: LOAD IN DISPENSARY (PRICE/ITEM) DETAILS FOR DELIV AND STOREFRONT -----------------------------------------------------
+
+items_sf <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/dispensary_items.csv")) %>%
+  rename("retail_id" = "Retail ID") %>%
+  mutate(id_for_merge = glue("storefront_{retail_id}") )
+
+items_delivery <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/delivery_items.csv")) %>%
+  rename("retail_id" = "Retail ID") %>%
+  mutate(id_for_merge = glue("storefront_{retail_id}") )
+
+all_item_info <- rbind(items_sf, items_delivery)
+
+rm(items_sf,
+   items_delivery)
+
+
 
 
 
