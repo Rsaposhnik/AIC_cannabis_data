@@ -40,7 +40,7 @@ for (scrape_date in scrape_dates) {
 # A1: LOAD IN DISPENSARY (MERCHANT) DETAILS FOR DELIV AND STOREFRONT -----------------------------------------------------
 
 dispensaries_sf <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/dispensary_services.csv")) %>%
-  mutate(id_for_merge = glue("storefront_{ID}") )
+  (id_for_merge = glue("storefront_{ID}") )
 
 dispensaries_delivery <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/delivery_services.csv")) %>%
   mutate(id_for_merge = glue("delivery_{ID}") )
@@ -250,7 +250,12 @@ all_dispensary_info <- all_dispensary_info %>%
          yr = year(date_of_scrape),
          mnth = month(date_of_scrape))
   
-# A6: EXPORT DATASET; RE-ARRANGE DATA FOR JOIN ONTO PRICING DATASET ----------------------------------------------------
+# A6: REMOVE DUPES, EXPORT DATASET; RE-ARRANGE DATA FOR JOIN ONTO PRICING DATASET ----------------------------------------------------
+
+# REMOVE DUPES 
+all_dispensary_info <- all_dispensary_info %>%
+  mutate(dupe = duplicated(id_for_merge)) %>%
+  filter(dupe == FALSE)
 
 ###########Export Merchant Dataset
 write_xlsx(all_dispensary_info,glue("{data_path}/datasets/cleaned_merchant_data/{scrape_date}.xlsx"))
@@ -296,6 +301,43 @@ rm(items_sf,
    items_delivery)
 
 
+### B2: JOIN ON USA MERCHANT DATA ONTO PRICING DATA  -----------------------------------------------------
+
+df_retail_items <- all_item_info %>%
+  left_join(.,
+            df_dispensaries, 
+            by= "id_for_merge")
+
+rm(all_item_info)
+
+### B3: DROP IRRELEVANT VARIABLES, REORGANIZE DATASET  -----------------------------------------------------
+
+df_retail_items <- df_retail_items %>%
+  select("id_for_merge",
+         "corrected_state",
+         "county_name",
+         "city",
+         "slug",
+         "phone_number",
+         "Delivery",
+         "License",
+         "Rating",
+         "Name",
+         "Price",
+         "Grams",
+         "Ounces",
+         "Grams Per Eighth",
+         "lic_type_1",
+         "lic_num_1",
+         "lic_category_1",
+         "lic_type_2",
+         "lic_num_2",
+         "lic_category_2",
+         "lic_type_3",
+         "lic_num_3",
+         "lic_category_3",
+         "lic_type_4",
+         "lic_num_4")
 
 
 
