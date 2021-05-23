@@ -40,7 +40,7 @@ for (scrape_date in scrape_dates) {
 # A1: LOAD IN DISPENSARY (MERCHANT) DETAILS FOR DELIV AND STOREFRONT -----------------------------------------------------
 
 dispensaries_sf <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/dispensary_services.csv")) %>%
-  (id_for_merge = glue("storefront_{ID}") )
+  mutate(id_for_merge = glue("storefront_{ID}") )
 
 dispensaries_delivery <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/delivery_services.csv")) %>%
   mutate(id_for_merge = glue("delivery_{ID}") )
@@ -313,7 +313,9 @@ rm(all_item_info)
 ### B3: DROP IRRELEVANT VARIABLES, REORGANIZE DATASET  -----------------------------------------------------
 
 df_retail_items <- df_retail_items %>%
-  select("id_for_merge",
+  mutate(scrape_date) %>%
+  select("scrape_date",
+         "id_for_merge",
          "corrected_state",
          "county_name",
          "city",
@@ -339,6 +341,26 @@ df_retail_items <- df_retail_items %>%
          "lic_type_4",
          "lic_num_4")
 
+df_retail_items <- df_retail_items %>%
+  rename("delivery" = "Delivery",
+         "license" = "License",
+         "rating" = "Rating",
+         "strain_name" = "Name",
+         "price" = "Price",
+         "grams" = "Grams",
+         "ounces" = "Ounces",
+         "grams_per_eigth" = "Grams Per Eighth")
+
+### B4: Adjust Packkge Sizes -----------------------------------------------------
+
+############## No quantity available in observations (package size information)
+df_retail_items <- df_retail_items %>%
+  mutate(no_qty_info_flag = ifelse(is.na(grams) & is.na(ounces),
+                                   TRUE,
+                                   FALSE))
+
+
+#Correct Grams Per Eigth
 
 
 }
