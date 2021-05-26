@@ -325,6 +325,7 @@ df_retail_items <- df_retail_items %>%
          "License",
          "Rating",
          "Name",
+         "Category Name",
          "Price",
          "Grams",
          "Ounces",
@@ -346,12 +347,13 @@ df_retail_items <- df_retail_items %>%
          "license" = "License",
          "rating" = "Rating",
          "strain_name" = "Name",
+         "category_name" = "Category Name",
          "price" = "Price",
          "grams" = "Grams",
          "ounces" = "Ounces",
          "grams_per_eigth" = "Grams Per Eighth")
 
-### B4: Adjust Packkge Sizes -----------------------------------------------------
+### B4: Adjust Package Sizes -----------------------------------------------------
 
 ############## No quantity available in observations (package size information)
 df_retail_items <- df_retail_items %>%
@@ -360,7 +362,63 @@ df_retail_items <- df_retail_items %>%
                                    FALSE))
 
 
-#Correct Grams Per Eigth
+############## Correct The "Grams Per Eighth" measurement for strains across
+############## each retailer (e.g. is "eighth" of OG Kush from AA Dispensary
+############## 3.5 grams? 4 grams? 5? based on some special deal????)
+
+#Determine unique grams-per-eighth at a retailer-product level
+grams_per_eigth_prod_level_all <- df_retail_items %>%
+  filter(category_name %in% c("Indica", "Hybrid", "Sativa" ),
+         !is.na(grams_per_eigth)) %>%
+  group_by(slug, city, strain_name, category_name, grams_per_eigth) %>%
+  summarize() %>%
+  ungroup() %>%
+  mutate(id_for_dupe = glue("{slug}_{city}_{strain_name}_{category_name}"), 
+         dupe = duplicated(id_for_dupe))
+
+#Remove duplicate products
+grams_per_eigth_prod_level_ready_for_merge <- grams_per_eigth_prod_level_all %>%
+  filter(dupe == FALSE) %>%
+  select(-id_for_dupe,-dupe) %>%
+  rename("corrected_grams_per_eigth" = "grams_per_eigth")
+
+#Join back correct grams-per-eights, and correct those without a merge (those with NA we correct to 3.5g per eighth)
+df_retail_items <- df_retail_items %>%
+  left_join(., grams_per_eigth_prod_level_ready_for_merge, by = c( "slug", "city", "strain_name", "category_name" )) %>%
+  mutate(grams_per_eigth = ifelse(is.na(grams_per_eigth) & (category_name %in% c("Indica", "Hybrid", "Sativa" )) ,
+                                  corrected_grams_per_eigth,
+                                  grams_per_eigth
+  )) %>%
+  select(-corrected_grams_per_eigth)
+
+
+############## Correct Ounces Variables and Grams Variable
+
+df_retail_items <- df_retail_items %>%
+  mutate(ounces = case_when( ounces == "1/8" ~ 0.125 ,
+                             ounces == "1/4" ~ 0.25 ,
+                             ounces == "1/2" ~ 0.5 ,
+                             ounces == "1" ~ 1 ,
+                             FALSE ~ NaN),
+         grams = case_when( grams == "1" ~ 1.0 ,
+                            grams == "2" ~ 2.0 ,
+                            grams == "1/2" ~ 0.5 ,
+                            FALSE ~ NaN)
+  )
+
+############## Unify Gram Variable
+
+# For those with n/a in the "grams" field, but a numerical value in "ounces" field, we
+# convert ounces to grams. For all other observations, accept grams as true.
+
+df_retail_items <- df_retail_items %>%
+  mutate(fixed_grams = case_when( is.na(grams) & !is.na(ounces) ~ 28.35 * ounces,
+                                  !is.na(grams) & is.na(ounces) ~ grams,
+                                  is.na(grams) & ounces == 0.125 & grams_per_eigth != 3.5 ~ grams_per_eigth,
+                                  FALSE ~ NaN
+  ))
+
+
 
 
 }
