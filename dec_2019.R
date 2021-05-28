@@ -382,6 +382,7 @@ grams_per_eigth_prod_level_ready_for_merge <- grams_per_eigth_prod_level_all %>%
   select(-id_for_dupe,-dupe) %>%
   rename("corrected_grams_per_eigth" = "grams_per_eigth")
 
+rm(grams_per_eigth_prod_level_all)
 #Join back correct grams-per-eights, and correct those without a merge (those with NA we correct to 3.5g per eighth)
 df_retail_items <- df_retail_items %>%
   left_join(., grams_per_eigth_prod_level_ready_for_merge, by = c( "slug", "city", "strain_name", "category_name" )) %>%
@@ -391,6 +392,7 @@ df_retail_items <- df_retail_items %>%
   )) %>%
   select(-corrected_grams_per_eigth)
 
+rm(grams_per_eigth_prod_level_ready_for_merge)
 
 ############## Correct Ounces Variables and Grams Variable
 
@@ -417,6 +419,251 @@ df_retail_items <- df_retail_items %>%
                                   is.na(grams) & ounces == 0.125 & grams_per_eigth != 3.5 ~ grams_per_eigth,
                                   FALSE ~ NaN
   ))
+
+
+
+
+
+### B5: Add Flags to DataSet in order to (1) clean noisy data; and (2) refine categorizations of flower and concentrates  -----------------------------------------------------
+
+############## Create Flags for Irrelevant Keywords & Symbols
+
+# Create Flags based off keywords and symbols that seem to be linked towards
+# noisy data (first time specials, promotions, free products, etc.)
+
+irrelevant_key_words <- c("follow", "call", "text", "sample", "menu", "refer", "delivery", "upgrade", "review")
+irrelevant_key_words <- glue_collapse(irrelevant_key_words, sep = "\\b|\\b")
+
+df_retail_items <- df_retail_items %>%
+  mutate(exclamation_flag = str_detect(strain_name, regex("\\!", ignore_case = TRUE)),
+         at_sign_flag = str_detect(strain_name, regex("\\@", ignore_case = TRUE)),
+         asterix_flag = str_detect(strain_name, regex("\\*", ignore_case = TRUE)),
+         keyword_flag = str_detect(strain_name, regex(irrelevant_key_words, ignore_case = TRUE)),
+         all_flag = ifelse(exclamation_flag == TRUE | at_sign_flag == TRUE | asterix_flag == TRUE | keyword_flag == TRUE,
+                           TRUE,
+                           FALSE))
+
+
+############## Create Flags for Better Categorization of Flower and Oils
+
+cartridges <- c("cart", "carts", "cartridge", "cartridges","dosist", "dosist™")
+cartridges <- glue_collapse(cartridges, sep = "\\b|\\b")
+
+concentrates <- c("concentrate", "concentrated", "concentrates", "resin", "kief", "keef", "crumble", "wax", "dab", "dabs")
+concentrates <- glue_collapse(concentrates, sep = "\\b|\\b")
+
+pen_pod <- c("pen", "pod", "pods", "vape" , "tank")
+pen_pod <- glue_collapse(pen_pod, sep = "\\b|\\b")
+
+oil <- c("oil", "oil", "E-Liquid", "syringe", "refill", "prefilled", "plug exotics", "plug dna", "stiizy", "jetty", "disposable")
+oil <- glue_collapse(oil, sep = "\\b|\\b")
+
+shatter_moonrock <- c("shatter", "moon rock", "moon-rock", "moon rocks", "moon-rocks", "moonrocks", "moonrock")
+shatter_moonrock <- glue_collapse(shatter_moonrock, sep = "\\b|\\b")
+
+tincture <- c("tincture", "tinctures")
+tincture <- glue_collapse(tincture, sep = "\\b|\\b")
+
+df_retail_items <- df_retail_items %>%
+  mutate(cart_flag = str_detect(strain_name, regex(cartridges, ignore_case = TRUE)),
+         concentrate_flag = str_detect(strain_name, regex(concentrates, ignore_case = TRUE)),
+         pen_pod_flag = str_detect(strain_name, regex(pen_pod, ignore_case = TRUE)),
+         shatter_moonrock_flag = str_detect(strain_name, regex(shatter_moonrock, ignore_case = TRUE)),
+         tincture_flag = str_detect(strain_name, regex(tincture, ignore_case = TRUE)),
+         liquid_oil_flag = str_detect(strain_name, regex(oil, ignore_case = TRUE))
+  )
+
+# Re-code cartridges, concentrates, and pen/pods to concentrates that may have been miscategorized as flower
+# Re-code tinctures as tinctures (not concentrates)
+
+df_retail_items <- df_retail_items %>%
+  mutate(category_name =
+           ifelse(category_name %in% c("Hybrid", "Sativa", "Indica"),
+                  "Flower",
+                  category_name),
+         category_name =
+           ifelse(concentrate_flag == TRUE | shatter_moonrock_flag == TRUE,
+                  "Concentrate",
+                  category_name),
+         category_name =
+           ifelse((cart_flag == TRUE | pen_pod_flag == TRUE | liquid_oil_flag == TRUE) & (fixed_grams >= 0.5 & fixed_grams <= 2) ,
+                  "oil",
+                  category_name),
+         category_name = 
+           ifelse(tincture_flag == TRUE,
+                  "Tincture",
+                  category_name)
+  )
+
+
+######## Add flags for undesirable flower products
+
+shake_trim_stem <- c("shake", "trim", "stem")
+shake_trim_stem <- glue_collapse(shake_trim_stem, sep = "\\b|\\b")
+
+pre_roll <- c("Pre-Roll", "Preroll", "Pre Roll", "Prerolled")
+pre_roll <- glue_collapse(pre_roll, sep = "\\b|\\b")
+
+df_retail_items <- df_retail_items %>%
+  mutate(shake_trim_stem_flag = str_detect(strain_name, regex(shake_trim_stem, ignore_case = TRUE)),
+         preroll_flag = str_detect(strain_name, regex(pre_roll, ignore_case = TRUE))
+  )
+
+
+
+### B6: Refine "Delivery" and "Phone Number" variable, Create Price Per Gram Variable  -----------------------------------------------------
+
+#Change Delivery Variable from Boolean to Descriptive
+df_retail_items <- df_retail_items %>%
+  mutate(delivery = ifelse(delivery == 1, "delivery", "storefront"))
+
+#Clean Phone number Variable
+df_retail_items <- df_retail_items %>%
+  mutate(cleaned_phone_number = gsub(" ", "", (gsub("[^A-Za-z0-9 ]", "", phone_number))))
+
+############## Create Price per Gram (PPG) Variable 
+df_retail_items <- df_retail_items %>%
+  mutate(ppg = price/fixed_grams
+  )
+
+### B7: Add more flags to clean data using the PPG variable  -----------------------------------------------------
+
+############# To lessen data noise and exclude observations with faulty scrape data, 
+############# observations should be removed if they have a with PPG over $135 and under $0.35
+
+df_retail_items <- df_retail_items %>%
+  mutate(upper_lower_bound_flag = ifelse(ppg <= 135 & ppg >= 0.35,
+                                         FALSE,
+                                         TRUE)
+  )
+
+
+############# To lessen data noise and exclude observations with faulty scrape data, 
+############# flower observations should be removed with a price greater than or equal to $888.80
+
+df_retail_items <- df_retail_items %>%
+  mutate(flower_error_flag_upper_bound = ifelse((price >= 888.80 & category_name == "Flower"),
+                                                TRUE,
+                                                FALSE)
+  )
+
+############# To lessen data noise and exclude observations with faulty scrape data, 
+############# flower observations should be removed with grams < 1 (aka 0.5g). These are most commonly oils, or even sample sizes.
+
+df_retail_items <- df_retail_items %>%
+  mutate(fixed_grams_0.5_flower_flag = ifelse((fixed_grams == 0.5 & category_name == "Flower"),
+                                              TRUE,
+                                              FALSE)
+  )
+
+############# To lessen data noise and exclude observations with faulty scrape data, 
+############# price ceilings and floors have been set for flower and oil (agreed upon by Robin G. and Raffaele S.)
+
+df_retail_items <- df_retail_items %>%
+  mutate(flower_bound_flag  = ifelse(((ppg <= 100 & ppg > 1 )& category_name == "Flower"),
+                                     TRUE,
+                                     FALSE),
+         oil_bound_flag  = ifelse(((ppg <= 300 & ppg > 3 )& category_name == "oil"),
+                                  TRUE,
+                                  FALSE)
+  )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### B8: Add flags to signify retailer type (e.g. delivery, storefront, etc.)  -----------------------------------------------------
+
+
+############## Create Adult/Medical SF/NonSF Dummy Variables
+df_retail_items <- df_retail_items %>%
+  mutate(flag_adult_retail = ifelse(delivery == "storefront" & license == "recreational",
+                                    TRUE,
+                                    FALSE),
+         flag_med_retail = ifelse(delivery == "storefront" & license == "medical",
+                                  TRUE,
+                                  FALSE),
+         flag_hybrid_retail = ifelse(delivery == "storefront" & license == "hybrid",
+                                     TRUE,
+                                     FALSE),
+         flag_adult_non_sf = ifelse(delivery == "delivery" & license == "recreational",
+                                    TRUE,
+                                    FALSE),
+         flag_medical_non_sf = ifelse(delivery == "delivery" & license == "medical",
+                                      TRUE,
+                                      FALSE),
+         flag_hybrid_non_sf = ifelse(delivery == "delivery" & license == "hybrid",
+                                     TRUE,
+                                     FALSE),
+         flag_any_medical = ifelse((flag_med_retail == TRUE |
+                                      flag_medical_non_sf == TRUE ),
+                                   TRUE,
+                                   FALSE),
+         flag_any_delivery = ifelse((flag_adult_non_sf == TRUE |
+                                       flag_medical_non_sf == TRUE |
+                                       flag_hybrid_non_sf == TRUE),
+                                    TRUE,
+                                    FALSE),
+         flag_microbiz = ifelse(no_lic_match_flag == TRUE, FALSE,
+                                ifelse(
+                                  (lic_type_1 == "Microbusiness" |  
+                                     lic_type_2 == "Microbusiness" |
+                                     lic_type_3 == "Microbusiness" |
+                                     lic_type_4 == "Microbusiness"  ),
+                                  TRUE,
+                                  FALSE)),
+         flag_other_biz = ifelse(no_lic_match_flag == TRUE, FALSE,
+                                 ifelse(
+                                   (lic_type_1 %in% c("Distributor", "Medical Cultivation", "Adult-Use Cultivation", "Adult-Use Mfg.", "Event" ) |
+                                      lic_type_2 %in% c("Distributor", "Medical Cultivation", "Adult-Use Cultivation", "Adult-Use Mfg.", "Event" ) |
+                                      lic_type_3 %in% c("Distributor", "Medical Cultivation", "Adult-Use Cultivation", "Adult-Use Mfg.", "Event" ) |
+                                      lic_type_4 %in% c("Distributor", "Medical Cultivation", "Adult-Use Cultivation", "Adult-Use Mfg.", "Event" )  ),
+                                   TRUE,
+                                   FALSE))
+  )
+
+# 
+# ############ Add License Type Flags and create flags on these new license confirmations
+# 
+# All_df <- All_df %>%
+#   mutate(flag_lic_type_LIC = ifelse(no_lic_match_flag == TRUE, FALSE,
+#                                     ifelse((lic_category_1 == "LIC" |
+#                                               lic_category_2 == "LIC" |
+#                                               lic_category_3 == "LIC" |
+#                                               lic_category_4 == "LIC"  ),
+#                                            TRUE,
+#                                            FALSE)),
+#          flag_lic_type_TEMP = ifelse(no_lic_match_flag == TRUE, FALSE,
+#                                      ifelse((lic_category_1 == "TEMP" |
+#                                                lic_category_2 == "TEMP" |
+#                                                lic_category_3 == "TEMP" |
+#                                                lic_category_4 == "TEMP"  ),
+#                                             TRUE,
+#                                             FALSE)),
+#          LIC_or_TEMP = ifelse(flag_lic_type_LIC == TRUE | flag_lic_type_TEMP == TRUE, 
+#                               TRUE, 
+#                               FALSE),
+#          no_license = ifelse(flag_lic_type_LIC == TRUE | flag_lic_type_TEMP == TRUE, 
+#                              FALSE, 
+#                              TRUE)
+#   )
+# 
+# 
+# 
+
+
+
 
 
 
