@@ -21,6 +21,7 @@ data_path <- "/Users/rsaposhnik/Documents/AIC/data"
 # install.packages("tidyverse")
 # install.packages("writexl")
 # install.packages("lubridate")
+# install.packages("haven")
 
 library("tigris")
 library('devtools')
@@ -31,25 +32,7 @@ library("readxl")
 library(ggplot2)
 library("writexl")
 library(lubridate)
-
-
-#Begin For-Loop to create datasets for all scrape dates 
-for (scrape_date in scrape_dates) {
-  
-### SECTION A - Merchant Information (Storefront Dispensaries and Delivery Dispensaries)
-# A1: LOAD IN DISPENSARY (MERCHANT) DETAILS FOR DELIV AND STOREFRONT -----------------------------------------------------
-
-dispensaries_sf <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/dispensary_services.csv")) %>%
-  mutate(id_for_merge = glue("storefront_{ID}") )
-
-dispensaries_delivery <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/delivery_services.csv")) %>%
-  mutate(id_for_merge = glue("delivery_{ID}") )
-                                                          
-all_dispensary_info <- rbind(dispensaries_sf, dispensaries_delivery)
-
-rm(dispensaries_sf,
-   dispensaries_delivery)
-
+library(haven)
 
 # A2: STANDARDIZE AND ADD COUNTY-MAPPING TO MERCHANT DETAILS ACROSS USA (USING LAT/LON)-----------------------------------------------------
 
@@ -93,6 +76,23 @@ df_county_subs <- df_county_subs %>%
 
 rm(county_crosswalk)
 
+#Begin For-Loop to create datasets for all scrape dates 
+for (scrape_date in scrape_dates) {
+  
+### SECTION A - Merchant Information (Storefront Dispensaries and Delivery Dispensaries)
+# A1: LOAD IN DISPENSARY (MERCHANT) DETAILS FOR DELIV AND STOREFRONT -----------------------------------------------------
+
+dispensaries_sf <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/dispensary_services.csv")) %>%
+  mutate(id_for_merge = glue("storefront_{ID}") )
+
+dispensaries_delivery <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/delivery_services.csv")) %>%
+  mutate(id_for_merge = glue("delivery_{ID}") )
+                                                          
+all_dispensary_info <- rbind(dispensaries_sf, dispensaries_delivery)
+
+rm(dispensaries_sf,
+   dispensaries_delivery)
+
 ########################### A2.ii - Determine Geospatial point of each dispensary in dataset using Lat/Lon
 
 #Narrow down dispensary dataset to only geospatial details and variables needed to merge back on
@@ -131,6 +131,9 @@ all_dispensary_info <- all_dispensary_info %>%
 
 rm(mapped_dispensaries)
 
+
+
+# A2: See Lines of Code before Loop Begins for County-Mapping
 
 # A3: STANDARDIZE STATE NAME ACROSS DATASET (USING SAME LAT/LON FROM DISPENSARIES), Remove non-US Entries -----------------------------------------------------
 
@@ -279,7 +282,8 @@ df_dispensaries <- all_dispensary_info %>%
          "lic_num_3",
          "lic_category_3",
          "lic_type_4",
-         "lic_num_4")
+         "lic_num_4",
+         "lic_category_4")
 
 
 #############------------
@@ -293,9 +297,10 @@ items_sf <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/dispensary_ite
 
 items_delivery <- read_csv(glue("{data_path}/scraped_data/{scrape_date}/delivery_items.csv")) %>%
   rename("retail_id" = "Retail ID") %>%
-  mutate(id_for_merge = glue("storefront_{retail_id}") )
+  mutate(id_for_merge = glue("delivery_{retail_id}") )
 
-all_item_info <- rbind(items_sf, items_delivery)
+all_item_info <- rbind(items_sf, items_delivery) %>%
+  mutate(id_for_merge = as.character(id_for_merge))
 
 rm(items_sf,
    items_delivery)
@@ -340,7 +345,8 @@ df_retail_items <- df_retail_items %>%
          "lic_num_3",
          "lic_category_3",
          "lic_type_4",
-         "lic_num_4")
+         "lic_num_4",
+         "lic_category_4")
 
 df_retail_items <- df_retail_items %>%
   rename("delivery" = "Delivery",
@@ -452,6 +458,9 @@ cartridges <- glue_collapse(cartridges, sep = "\\b|\\b")
 concentrates <- c("concentrate", "concentrated", "concentrates", "resin", "kief", "keef", "crumble", "wax", "dab", "dabs")
 concentrates <- glue_collapse(concentrates, sep = "\\b|\\b")
 
+dosist <- c("dosist", "dosist™")
+dosist <- glue_collapse(dosist, sep = "\\b|\\b")
+
 pen_pod <- c("pen", "pod", "pods", "vape" , "tank")
 pen_pod <- glue_collapse(pen_pod, sep = "\\b|\\b")
 
@@ -467,6 +476,7 @@ tincture <- glue_collapse(tincture, sep = "\\b|\\b")
 df_retail_items <- df_retail_items %>%
   mutate(cart_flag = str_detect(strain_name, regex(cartridges, ignore_case = TRUE)),
          concentrate_flag = str_detect(strain_name, regex(concentrates, ignore_case = TRUE)),
+         dosist_flag = str_detect(strain_name, regex(dosist, ignore_case = TRUE)),
          pen_pod_flag = str_detect(strain_name, regex(pen_pod, ignore_case = TRUE)),
          shatter_moonrock_flag = str_detect(strain_name, regex(shatter_moonrock, ignore_case = TRUE)),
          tincture_flag = str_detect(strain_name, regex(tincture, ignore_case = TRUE)),
@@ -509,9 +519,16 @@ df_retail_items <- df_retail_items %>%
          preroll_flag = str_detect(strain_name, regex(pre_roll, ignore_case = TRUE))
   )
 
+### B6: Text Search "strain_name" to manually search for "dosist" (specifc product) grams and correct  -----------------------------------------------------
 
+df_retail_items <- df_retail_items %>%
+  mutate(dosist_dose_amount = ifelse(dosist_flag == TRUE, parse_number(strain_name), NaN ),
+         fixed_grams = case_when(dosist_flag == TRUE & (dosist_dose_amount == 50 | is.na(dosist_dose_amount)) ~ 0.1125,
+                                 dosist_flag == TRUE & dosist_dose_amount == 200 ~ 0.45,
+                                 (dosist_flag == FALSE | is.na(dosist_flag)) ~ fixed_grams,
+                                 FALSE ~ NaN)) 
 
-### B6: Refine "Delivery" and "Phone Number" variable, Create Price Per Gram Variable  -----------------------------------------------------
+### B7: Refine "Delivery" and "Phone Number" variable, Create Price Per Gram Variable  -----------------------------------------------------
 
 #Change Delivery Variable from Boolean to Descriptive
 df_retail_items <- df_retail_items %>%
@@ -526,7 +543,7 @@ df_retail_items <- df_retail_items %>%
   mutate(ppg = price/fixed_grams
   )
 
-### B7: Add more flags to clean data using the PPG variable  -----------------------------------------------------
+### B8: Add more flags to clean data using the PPG variable  -----------------------------------------------------
 
 ############# To lessen data noise and exclude observations with faulty scrape data, 
 ############# observations should be removed if they have a with PPG over $135 and under $0.35
@@ -571,21 +588,15 @@ df_retail_items <- df_retail_items %>%
 
 
 
+### B9: Add flags to signify retailer type (e.g. delivery, storefront, etc.)  -----------------------------------------------------
 
 
-
-
-
-
-
-
-
-
-
-
-### B8: Add flags to signify retailer type (e.g. delivery, storefront, etc.)  -----------------------------------------------------
-
-
+############ Create flag for entries without Licenses (No item-ID match from all dispensary license dataset)
+df_retail_items <- df_retail_items %>%
+mutate(no_lic_match_flag = ifelse(is.na(lic_type_1),
+                                  TRUE,
+                                  FALSE))
+       
 ############## Create Adult/Medical SF/NonSF Dummy Variables
 df_retail_items <- df_retail_items %>%
   mutate(flag_adult_retail = ifelse(delivery == "storefront" & license == "recreational",
@@ -631,36 +642,105 @@ df_retail_items <- df_retail_items %>%
                                       lic_type_4 %in% c("Distributor", "Medical Cultivation", "Adult-Use Cultivation", "Adult-Use Mfg.", "Event" )  ),
                                    TRUE,
                                    FALSE))
+)
+  
+
+############ Add License Type Flags and create flags on these new license confirmations
+df_retail_items <- df_retail_items %>%
+  mutate(flag_lic_type_OTHER = ifelse(no_lic_match_flag == TRUE,
+                                      FALSE,
+                                      ifelse((lic_category_1 == "Other License") & 
+                                               (lic_type_1 %in% c("Adult-Use Cultivation",
+                                                                  "Adult-Use Nonstorefront",
+                                                                  "Adult-Use Retail",
+                                                                  "Distributor",
+                                                                  "Medical Nonstorefront",
+                                                                  "Medical Retail",
+                                                                  "Microbusiness")),
+                                             TRUE,
+                                             FALSE)),
+         flag_lic_type_TEMP = ifelse(no_lic_match_flag == TRUE, FALSE,
+                                     ifelse((lic_category_1 == "TEMP" |
+                                               lic_category_2 == "TEMP" |
+                                               lic_category_3 == "TEMP" |
+                                               lic_category_4 == "TEMP"  ),
+                                            TRUE,
+                                            FALSE)),
+         flag_lic_type_LIC = ifelse(no_lic_match_flag == TRUE, FALSE,
+                                    ifelse((lic_category_1 == "LIC" |
+                                              lic_category_2 == "LIC" |
+                                              lic_category_3 == "LIC" |
+                                              lic_category_4 == "LIC"  ),
+                                           TRUE,
+                                           FALSE)),
+         any_license = ifelse(flag_lic_type_LIC == TRUE |
+                              flag_lic_type_TEMP == TRUE | 
+                              flag_lic_type_OTHER == TRUE,
+                              TRUE,
+                              FALSE)
   )
 
-# 
-# ############ Add License Type Flags and create flags on these new license confirmations
-# 
-# All_df <- All_df %>%
-#   mutate(flag_lic_type_LIC = ifelse(no_lic_match_flag == TRUE, FALSE,
-#                                     ifelse((lic_category_1 == "LIC" |
-#                                               lic_category_2 == "LIC" |
-#                                               lic_category_3 == "LIC" |
-#                                               lic_category_4 == "LIC"  ),
-#                                            TRUE,
-#                                            FALSE)),
-#          flag_lic_type_TEMP = ifelse(no_lic_match_flag == TRUE, FALSE,
-#                                      ifelse((lic_category_1 == "TEMP" |
-#                                                lic_category_2 == "TEMP" |
-#                                                lic_category_3 == "TEMP" |
-#                                                lic_category_4 == "TEMP"  ),
-#                                             TRUE,
-#                                             FALSE)),
-#          LIC_or_TEMP = ifelse(flag_lic_type_LIC == TRUE | flag_lic_type_TEMP == TRUE, 
-#                               TRUE, 
-#                               FALSE),
-#          no_license = ifelse(flag_lic_type_LIC == TRUE | flag_lic_type_TEMP == TRUE, 
-#                              FALSE, 
-#                              TRUE)
-#   )
-# 
-# 
-# 
+
+### B10: Create Tidy Variables for Table  -----------------------------------------------------
+
+df_retail_items <- df_retail_items %>%
+  mutate(med_or_adult_use = ifelse(flag_any_medical == TRUE, "medical", "recreational"),
+         deliv_or_storefront = ifelse(flag_any_delivery == TRUE, "delivery", "storefront"),
+         license_status = ifelse(any_license == TRUE, "licensed", "unlicensed"),
+         license_type = case_when(flag_lic_type_LIC == TRUE & flag_lic_type_TEMP == TRUE ~ "LIC",
+                                  flag_lic_type_LIC == TRUE & flag_lic_type_TEMP == FALSE ~ "LIC",
+                                  flag_lic_type_LIC == FALSE & flag_lic_type_TEMP == TRUE ~ "TEMP",
+                                  flag_lic_type_OTHER == TRUE & flag_lic_type_LIC == FALSE & flag_lic_type_TEMP == FALSE ~ "Other License",
+                                  flag_lic_type_OTHER == FALSE  & flag_lic_type_LIC == FALSE & flag_lic_type_TEMP == FALSE ~ "No License",
+                                  TRUE ~ NA_character_)
+  )
+
+df_retail_items <- df_retail_items %>%
+  select(scrape_date,
+         id_for_merge,
+         corrected_state,
+         county_name,
+         city,
+         slug,
+         phone_number,
+         cleaned_phone_number,
+         deliv_or_storefront,
+         delivery,
+         license_type,
+         license_status,
+         med_or_adult_use,
+         license,
+         rating,
+         strain_name,
+         category_name,
+         price,
+         grams,
+         ounces,
+         grams_per_eigth,
+         fixed_grams,
+         ppg,
+         no_qty_info_flag,
+         dosist_dose_amount,
+         everything())
+
+### B10[FILTER]: (FILTERED TO USA ENTRIES, Observations with pricing/quantity info, erroneous symbols)  -----------------------------------------------------
+df_retail_items <- df_retail_items %>%
+  filter(!is.na(corrected_state),
+         no_qty_info_flag == FALSE,
+         all_flag == FALSE)
+
+### B11[EXPORT]: Export Final Scrape Date Dataset Build of all Deliv/Storefront Prices  -----------------------------------------------------
+write_csv(df_retail_items, glue("{data_path}/datasets/cleaned_price_data/{scrape_date}.csv"))
+
+#remove all irrelevant datasets 
+rm(all_dispensary_info,
+   df_county_subs,
+   df_dispensaries)
+
+
+
+
+
 
 
 
