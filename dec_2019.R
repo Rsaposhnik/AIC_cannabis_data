@@ -34,7 +34,7 @@ library("writexl")
 library(lubridate)
 library(haven)
 
-# A2: STANDARDIZE AND ADD COUNTY-MAPPING TO MERCHANT DETAILS ACROSS USA (USING LAT/LON)-----------------------------------------------------
+# STANDARDIZE AND ADD COUNTY-MAPPING TO MERCHANT DETAILS ACROSS USA (USING LAT/LON)-----------------------------------------------------
 
 ########################### A2.i - Map all US ZIP codes to county subdivisions (subs)
 
@@ -46,7 +46,8 @@ df_county_subs <- county_subdivisions(state = "AL",
                                       cb = TRUE,
                                       class = "sf")
 
-#Loop through remaining 49 and add to df, making a full dataset of all counties and their geospatial boundaries
+
+######### Loop through remaining 49 and add to df, making a full dataset of all counties and their geospatial boundaries
 remaining_states <- all_states[2:50]
 
 for (looped_state in remaining_states) {
@@ -76,7 +77,10 @@ df_county_subs <- df_county_subs %>%
 
 rm(county_crosswalk)
 
-#Begin For-Loop to create datasets for all scrape dates 
+
+
+# [BEGIN DATA BUILD] Start For-Loop to create datasets for all scrape dates --------------------------------------
+
 for (scrape_date in scrape_dates) {
   
 ### SECTION A - Merchant Information (Storefront Dispensaries and Delivery Dispensaries)
@@ -187,14 +191,14 @@ all_dispensary_info <- all_dispensary_info %>%
          county_name,
          City, 
          `Zip Code`,
-         everything()) %>%
-  filter(!is.na(corrected_state))
+         everything()) 
 
 # A4: RENAME RELVEANT VARIABLES,-----------------------------------------------------
 
 ########## Rename Variables
 all_dispensary_info <- all_dispensary_info %>%
-  rename("phone_number" = "Phone Number",
+  rename("reviews_count" = "Reviews Count",
+         "phone_number" = "Phone Number",
          "slug" = "Slug",
          "city" = "City",
          "lic_type_1" = "License Type 1",
@@ -272,6 +276,7 @@ df_dispensaries <- all_dispensary_info %>%
          "city",
          "slug",
          "phone_number",
+         "reviews_count",
          "lic_type_1",
          "lic_num_1",
          "lic_category_1",
@@ -286,7 +291,7 @@ df_dispensaries <- all_dispensary_info %>%
          "lic_category_4")
 
 
-#############------------
+### SECTION B - Load in Retail Item information (i.e. Prices) and Join on Merchant Info ------------
 ### SECTION B - Cannabis Price Information (Storefront and Delivery) 
 
 ### B1: LOAD IN DISPENSARY (PRICE/ITEM) DETAILS FOR DELIV AND STOREFRONT -----------------------------------------------------
@@ -329,6 +334,7 @@ df_retail_items <- df_retail_items %>%
          "Delivery",
          "License",
          "Rating",
+         "reviews_count",
          "Name",
          "Category Name",
          "Price",
@@ -450,7 +456,7 @@ df_retail_items <- df_retail_items %>%
                            FALSE))
 
 
-############## Create Flags for Better Categorization of Flower and Oils
+############## Create Flags for Better Categorization of flower and Oils
 
 cartridges <- c("cart", "carts", "cartridge", "cartridges","dosist", "dosist™")
 cartridges <- glue_collapse(cartridges, sep = "\\b|\\b")
@@ -489,7 +495,7 @@ df_retail_items <- df_retail_items %>%
 df_retail_items <- df_retail_items %>%
   mutate(category_name =
            ifelse(category_name %in% c("Hybrid", "Sativa", "Indica"),
-                  "Flower",
+                  "flower",
                   category_name),
          category_name =
            ifelse(concentrate_flag == TRUE | shatter_moonrock_flag == TRUE,
@@ -559,7 +565,7 @@ df_retail_items <- df_retail_items %>%
 ############# flower observations should be removed with a price greater than or equal to $888.80
 
 df_retail_items <- df_retail_items %>%
-  mutate(flower_error_flag_upper_bound = ifelse((price >= 888.80 & category_name == "Flower"),
+  mutate(flower_error_flag_upper_bound = ifelse((price >= 888.80 & category_name == "flower"),
                                                 TRUE,
                                                 FALSE)
   )
@@ -568,7 +574,7 @@ df_retail_items <- df_retail_items %>%
 ############# flower observations should be removed with grams < 1 (aka 0.5g). These are most commonly oils, or even sample sizes.
 
 df_retail_items <- df_retail_items %>%
-  mutate(fixed_grams_0.5_flower_flag = ifelse((fixed_grams == 0.5 & category_name == "Flower"),
+  mutate(fixed_grams_0.5_flower_flag = ifelse((fixed_grams == 0.5 & category_name == "flower"),
                                               TRUE,
                                               FALSE)
   )
@@ -577,7 +583,7 @@ df_retail_items <- df_retail_items %>%
 ############# price ceilings and floors have been set for flower and oil (agreed upon by Robin G. and Raffaele S.)
 
 df_retail_items <- df_retail_items %>%
-  mutate(flower_bound_flag  = ifelse(((ppg <= 100 & ppg > 1 )& category_name == "Flower"),
+  mutate(flower_bound_flag  = ifelse(((ppg <= 100 & ppg > 1 )& category_name == "flower"),
                                      TRUE,
                                      FALSE),
          oil_bound_flag  = ifelse(((ppg <= 300 & ppg > 3 )& category_name == "oil"),
@@ -680,8 +686,14 @@ df_retail_items <- df_retail_items %>%
                               FALSE)
   )
 
+### B10: Add flag to "duplicate" observations from merchants with more than one listing (typically delivery outfitters)  -----------------------------------------------------
 
-### B10: Create Tidy Variables for Table  -----------------------------------------------------
+# This is based on identical phone numbers, strain name, quantity,and flower/oil category, 
+df_retail_items <- df_retail_items %>%
+  mutate(id_with_phone_num_match = glue("{phone_number}_{strain_name}_{fixed_grams}_{category_name}"),
+         dupe_by_phone_num = duplicated(id_with_phone_num_match)) 
+
+### B11: Create Tidy Variables for Table  -----------------------------------------------------
 
 df_retail_items <- df_retail_items %>%
   mutate(med_or_adult_use = ifelse(flag_any_medical == TRUE, "medical", "recreational"),
@@ -711,6 +723,7 @@ df_retail_items <- df_retail_items %>%
          med_or_adult_use,
          license,
          rating,
+         reviews_count,
          strain_name,
          category_name,
          price,
@@ -723,13 +736,63 @@ df_retail_items <- df_retail_items %>%
          dosist_dose_amount,
          everything())
 
-### B10[FILTER]: (FILTERED TO USA ENTRIES, Observations with pricing/quantity info, erroneous symbols)  -----------------------------------------------------
-df_retail_items <- df_retail_items %>%
-  filter(!is.na(corrected_state),
-         no_qty_info_flag == FALSE,
-         all_flag == FALSE)
+### B10[FILTER]----------------------------------------------------
 
-### B11[EXPORT]: Export Final Scrape Date Dataset Build of all Deliv/Storefront Prices  -----------------------------------------------------
+df_retail_items <- df_retail_items %>%
+  filter(#Remove non US Entries
+         !is.na(corrected_state),
+         #Remove observations without quantity information (e.g. grams, ounces)
+         (no_qty_info_flag == FALSE | (!is.na(fixed_grams))),
+         #Remove observations without odd symbols any indications that they may be noisy data
+         all_flag == FALSE,
+         #Remove observations that have been scraped as "oil" or "flower" but are so low/highly priced that its likely a listing eror
+         (flower_bound_flag == TRUE | oil_bound_flag == TRUE),
+         #Remove flower observations that are a 1/2 gram (only a sample, not an actual sold quantity)
+         fixed_grams_0.5_flower_flag == FALSE,
+         #Remove any merchants without any reviews (these are noisy listings)
+         (!(reviews_count == 0 | is.na(reviews_count))),
+         #Narrow down dataset only to oil and flower entries
+         category_name %in% c("flower", "oil"),
+         #Remove shake/trim/stem observations
+         shake_trim_stem_flag == FALSE
+         )
+
+### B11 - Remove flags used for filtering and others----------------------------------------------------
+
+df_retail_items <- df_retail_items %>%
+  select(-exclamation_flag,
+         -at_sign_flag,
+         -asterix_flag,
+         -keyword_flag,
+         -all_flag,
+         -cart_flag,
+         -concentrate_flag,
+         -pen_pod_flag,
+         -shatter_moonrock_flag,
+         -tincture_flag,
+         -liquid_oil_flag,
+         -shake_trim_stem_flag,
+         -preroll_flag,
+         -upper_lower_bound_flag,
+         -flower_error_flag_upper_bound,
+         -fixed_grams_0.5_flower_flag,
+         -flower_bound_flag,
+         -oil_bound_flag,
+         # -flag_adult_retail,
+         # -flag_med_retail,
+         # -flag_hybrid_non_sf,
+         # -flag_hybrid_retail,
+         # -flag_adult_non_sf,
+         # -flag_adult_retail,
+         # -flag_medical_non_sf,
+         # -flag_med_retail,
+         -flag_microbiz,
+         -flag_other_biz,
+         -id_with_phone_num_match
+         )
+  
+
+### B12[EXPORT]: Export Final Scrape Date Dataset Build of all Deliv/Storefront Prices  -----------------------------------------------------
 write_csv(df_retail_items, glue("{data_path}/datasets/cleaned_price_data/{scrape_date}.csv"))
 
 #remove all irrelevant datasets 
@@ -738,14 +801,40 @@ rm(all_dispensary_info,
    df_dispensaries)
 
 
+### SECTION C - Remove duplicates and create new dataset without dupes ------------
+deduped_df_retail_items <- df_retail_items %>%
+  filter(dupe_by_phone_num == FALSE)
 
+### SECTION D - Generate Summary Statistics for Export ------------
 
+########## Create For-Loop to run for both datasets (with dupes, without dupes), and for multiple products
+df_list <- list(df_retail_items,
+                deduped_df_retail_items)
 
+all_categories <- c("flower",
+                    "oil")
 
+#Loop through retail dataset and de-duped retail dataset
+for (retail_dataset in df_list) {
 
-
-
-
-
+  #Loop through both flower and oil 
+  for (category in all_categories) {
+    
+    # License Level 
+   A_qty_lvl_ss <- retail_dataset %>%
+      filter(category_name == category) %>%
+      group_by(corrected_state, scrape_date, category_name, fixed_grams, license_status) %>%
+      summarize(observations = n(),
+                min_price = min(ppg),
+                mean_price = mean(ppg),
+                median_price = median(ppg),
+                max_price = max(ppg),
+                std_dev = sd(ppg)
+      )
+   assign(  paste("A_qty_lvl_ss", glue("{category}"), sep = "_"), A_qty_lvl_ss )
+   rm(A_qty_lvl_ss)
+       }
+  
+    }
 
 }
