@@ -816,11 +816,13 @@ all_categories <- c("flower",
 
 #Loop through retail dataset and de-duped retail dataset
 for (retail_dataset in df_list) {
-
+####NOTE TO RAFF <- YOU HAVNET INTEGRATED THE DEDUPE INTO THE LOOP UYET (6/16, 8AM
+  
   #Loop through both flower and oil 
   for (category in all_categories) {
     
-    # License Level 
+  #### QUANTITY LEVEL STATS (SEPARATED BY FIXED GRAMS)
+   # Lic vs. Unlic
    A_qty_lvl_ss <- retail_dataset %>%
       filter(category_name == category) %>%
       group_by(corrected_state, scrape_date, category_name, fixed_grams, license_status) %>%
@@ -833,8 +835,81 @@ for (retail_dataset in df_list) {
       )
    assign(  paste("A_qty_lvl_ss", glue("{category}"), sep = "_"), A_qty_lvl_ss )
    rm(A_qty_lvl_ss)
+   
+   # Deliv vs. Storefront
+   B_qty_lvl_ss <- retail_dataset %>%
+     filter(category_name == category) %>%
+     group_by(corrected_state, scrape_date, category_name, fixed_grams, deliv_or_storefront) %>%
+     summarize(observations = n(),
+               min_price = min(ppg),
+               mean_price = mean(ppg),
+               median_price = median(ppg),
+               max_price = max(ppg),
+               std_dev = sd(ppg)
+     )
+   assign(  paste("B_qty_lvl_ss", glue("{category}"), sep = "_"), B_qty_lvl_ss )
+   rm(B_qty_lvl_ss)
+   
+   # Deliv vs. Storefront AND Lic/Unlic
+   C_qty_lvl_ss <- retail_dataset %>%
+     filter(category_name == category) %>%
+     group_by(corrected_state, scrape_date, category_name, fixed_grams, license_status, deliv_or_storefront) %>%
+     summarize(observations = n(),
+               min_price = min(ppg),
+               mean_price = mean(ppg),
+               median_price = median(ppg),
+               max_price = max(ppg),
+               std_dev = sd(ppg)
+     )
+   assign(  paste("C_qty_lvl_ss", glue("{category}"), sep = "_"), C_qty_lvl_ss )
+   rm(C_qty_lvl_ss)
+   
+   #### AGGREGATE LEVEL STATS (PPG ACROSS ALL PACKAGE SIZES OF FIXED GRAMS)
+   # Lic vs. Unlic
+   A_AGG_ss <- retail_dataset %>%
+     filter(category_name == category) %>%
+     group_by(corrected_state, scrape_date, category_name, license_status) %>%
+     summarize(observations = n(),
+               min_price = min(ppg),
+               mean_price = mean(ppg),
+               median_price = median(ppg),
+               max_price = max(ppg),
+               std_dev = sd(ppg)
+     )
+   assign(  paste("A_AGG_ss", glue("{category}"), sep = "_"), A_AGG_ss )
+   rm(A_AGG_ss)
+   
+   # Deliv vs. Storefront
+   B_AGG_ss <- retail_dataset %>%
+     filter(category_name == category) %>%
+     group_by(corrected_state, scrape_date, category_name, deliv_or_storefront) %>%
+     summarize(observations = n(),
+               min_price = min(ppg),
+               mean_price = mean(ppg),
+               median_price = median(ppg),
+               max_price = max(ppg),
+               std_dev = sd(ppg)
+     )
+   assign(  paste("B_AGG_ss", glue("{category}"), sep = "_"), B_AGG_ss )
+   rm(B_AGG_ss)
+   
+   # Deliv vs. Storefront AND Lic/Unlic
+   C_AGG_ss <- retail_dataset %>%
+     filter(category_name == category) %>%
+     group_by(corrected_state, scrape_date, category_name, license_status, deliv_or_storefront) %>%
+     summarize(observations = n(),
+               min_price = min(ppg),
+               mean_price = mean(ppg),
+               median_price = median(ppg),
+               max_price = max(ppg),
+               std_dev = sd(ppg)
+     )
+   assign(  paste("C_AGG_ss", glue("{category}"), sep = "_"), C_AGG_ss )
+   rm(C_AGG_ss)
+   
        }
   
     }
+
 
 }
