@@ -805,7 +805,7 @@ rm(all_dispensary_info,
 deduped_df_retail_items <- df_retail_items %>%
   filter(dupe_by_phone_num == FALSE)
 
-### SECTION D - Generate Summary Statistics for Export ------------
+## SECTION D - Generate Summary Statistics for Export (Across all merchants) ------------
 
 ########## Create For-Loop to run for both datasets (with dupes, without dupes), and for multiple products
 df_list <- list(df_retail_items,
@@ -817,99 +817,173 @@ all_categories <- c("flower",
 #Loop through retail dataset and de-duped retail dataset
 for (retail_dataset in df_list) {
 ####NOTE TO RAFF <- YOU HAVNET INTEGRATED THE DEDUPE INTO THE LOOP UYET (6/16, 8AM
-  
-  #Loop through both flower and oil 
+
+  #Loop through both flower and oil
   for (category in all_categories) {
+      
+        # Create variable for name of dataset
+        dupe_type <- ifelse(nrow(retail_dataset) == nrow(df_retail_items),
+                            "wdupe",
+                            "deduped")
     
-  #### QUANTITY LEVEL STATS (SEPARATED BY FIXED GRAMS)
-   # Lic vs. Unlic
-   A_qty_lvl_ss <- retail_dataset %>%
-      filter(category_name == category) %>%
-      group_by(corrected_state, scrape_date, category_name, fixed_grams, license_status) %>%
-      summarize(observations = n(),
+        ### QUANTITY LEVEL STATS (SEPARATED BY FIXED GRAMS)
+        #Lic vs. Unlic
+        A_qty_lvl_ss <- retail_dataset %>%
+        filter(category_name == category) %>%
+        group_by(corrected_state, scrape_date, category_name, fixed_grams, license_status) %>%
+        summarize(observations = n(),
+                 min_price = min(ppg),
+                 mean_price = mean(ppg),
+                 median_price = median(ppg),
+                 max_price = max(ppg),
+                 std_dev = sd(ppg)
+        )
+
+        write_csv(A_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/A_qty_lvl_{category}_{scrape_date}.csv"))
+        
+        # Deliv vs. Storefront
+        B_qty_lvl_ss <- retail_dataset %>%
+        filter(category_name == category) %>%
+        group_by(corrected_state, scrape_date, category_name, fixed_grams, deliv_or_storefront) %>%
+        summarize(observations = n(),
                 min_price = min(ppg),
                 mean_price = mean(ppg),
                 median_price = median(ppg),
                 max_price = max(ppg),
                 std_dev = sd(ppg)
-      )
-   assign(  paste("A_qty_lvl_ss", glue("{category}"), sep = "_"), A_qty_lvl_ss )
-   rm(A_qty_lvl_ss)
-   
-   # Deliv vs. Storefront
-   B_qty_lvl_ss <- retail_dataset %>%
-     filter(category_name == category) %>%
-     group_by(corrected_state, scrape_date, category_name, fixed_grams, deliv_or_storefront) %>%
-     summarize(observations = n(),
-               min_price = min(ppg),
-               mean_price = mean(ppg),
-               median_price = median(ppg),
-               max_price = max(ppg),
-               std_dev = sd(ppg)
-     )
-   assign(  paste("B_qty_lvl_ss", glue("{category}"), sep = "_"), B_qty_lvl_ss )
-   rm(B_qty_lvl_ss)
-   
-   # Deliv vs. Storefront AND Lic/Unlic
-   C_qty_lvl_ss <- retail_dataset %>%
-     filter(category_name == category) %>%
-     group_by(corrected_state, scrape_date, category_name, fixed_grams, license_status, deliv_or_storefront) %>%
-     summarize(observations = n(),
-               min_price = min(ppg),
-               mean_price = mean(ppg),
-               median_price = median(ppg),
-               max_price = max(ppg),
-               std_dev = sd(ppg)
-     )
-   assign(  paste("C_qty_lvl_ss", glue("{category}"), sep = "_"), C_qty_lvl_ss )
-   rm(C_qty_lvl_ss)
-   
-   #### AGGREGATE LEVEL STATS (PPG ACROSS ALL PACKAGE SIZES OF FIXED GRAMS)
-   # Lic vs. Unlic
-   A_AGG_ss <- retail_dataset %>%
-     filter(category_name == category) %>%
-     group_by(corrected_state, scrape_date, category_name, license_status) %>%
-     summarize(observations = n(),
-               min_price = min(ppg),
-               mean_price = mean(ppg),
-               median_price = median(ppg),
-               max_price = max(ppg),
-               std_dev = sd(ppg)
-     )
-   assign(  paste("A_AGG_ss", glue("{category}"), sep = "_"), A_AGG_ss )
-   rm(A_AGG_ss)
-   
-   # Deliv vs. Storefront
-   B_AGG_ss <- retail_dataset %>%
-     filter(category_name == category) %>%
-     group_by(corrected_state, scrape_date, category_name, deliv_or_storefront) %>%
-     summarize(observations = n(),
-               min_price = min(ppg),
-               mean_price = mean(ppg),
-               median_price = median(ppg),
-               max_price = max(ppg),
-               std_dev = sd(ppg)
-     )
-   assign(  paste("B_AGG_ss", glue("{category}"), sep = "_"), B_AGG_ss )
-   rm(B_AGG_ss)
-   
-   # Deliv vs. Storefront AND Lic/Unlic
-   C_AGG_ss <- retail_dataset %>%
-     filter(category_name == category) %>%
-     group_by(corrected_state, scrape_date, category_name, license_status, deliv_or_storefront) %>%
-     summarize(observations = n(),
-               min_price = min(ppg),
-               mean_price = mean(ppg),
-               median_price = median(ppg),
-               max_price = max(ppg),
-               std_dev = sd(ppg)
-     )
-   assign(  paste("C_AGG_ss", glue("{category}"), sep = "_"), C_AGG_ss )
-   rm(C_AGG_ss)
-   
+        )
+        
+        write_csv(B_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/B_qty_lvl_{category}_{scrape_date}.csv"))
+        
+        
+        # Deliv vs. Storefront AND Lic/Unlic
+        C_qty_lvl_ss <- retail_dataset %>%
+        filter(category_name == category) %>%
+        group_by(corrected_state, scrape_date, category_name, fixed_grams, license_status, deliv_or_storefront) %>%
+        summarize(observations = n(),
+                min_price = min(ppg),
+                mean_price = mean(ppg),
+                median_price = median(ppg),
+                max_price = max(ppg),
+                std_dev = sd(ppg)
+        )
+       
+         write_csv(C_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/C_qty_lvl_{category}_{scrape_date}.csv"))
+        
+        
+        #### AGGREGATE LEVEL STATS (PPG ACROSS ALL PACKAGE SIZES OF FIXED GRAMS)
+        # Lic vs. Unlic
+        A_AGG_ss <- retail_dataset %>%
+        filter(category_name == category) %>%
+        group_by(corrected_state, scrape_date, category_name, license_status) %>%
+        summarize(observations = n(),
+                min_price = min(ppg),
+                mean_price = mean(ppg),
+                median_price = median(ppg),
+                max_price = max(ppg),
+                std_dev = sd(ppg)
+        )
+        
+        write_csv(A_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/A_AGG_{category}_{scrape_date}.csv"))
+      
+        
+        # Deliv vs. Storefront
+        B_AGG_ss <- retail_dataset %>%
+        filter(category_name == category) %>%
+        group_by(corrected_state, scrape_date, category_name, deliv_or_storefront) %>%
+        summarize(observations = n(),
+                min_price = min(ppg),
+                mean_price = mean(ppg),
+                median_price = median(ppg),
+                max_price = max(ppg),
+                std_dev = sd(ppg)
+        )
+       
+        write_csv(B_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/B_AGG_{category}_{scrape_date}.csv"))
+        
+        
+        # Deliv vs. Storefront AND Lic/Unlic
+        C_AGG_ss <- retail_dataset %>%
+        filter(category_name == category) %>%
+        group_by(corrected_state, scrape_date, category_name, license_status, deliv_or_storefront) %>%
+        summarize(observations = n(),
+                min_price = min(ppg),
+                mean_price = mean(ppg),
+                median_price = median(ppg),
+                max_price = max(ppg),
+                std_dev = sd(ppg)
+        )
+        write_csv(C_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/C_AGG_{category}_{scrape_date}.csv"))
+        
+
+        #### MERCHANT LEVEL STATS (PPG ACROSS ALL PACKAGE SIZES OF FIXED GRAMS)
+        
+        #Merchant Level Prices, QUANTITY Level 
+        D_mlp_qty_lvl_ss <- retail_dataset %>%
+          filter(category_name == category) %>%
+          group_by(corrected_state, scrape_date, slug, phone_number, category_name, fixed_grams, license_status, deliv_or_storefront) %>%
+          summarize(observations = n(),
+                    min_price = min(ppg),
+                    mean_price = mean(ppg),
+                    median_price = median(ppg),
+                    max_price = max(ppg),
+                    std_dev = sd(ppg))
+        
+        write_csv(D_mlp_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/D_mlp_qty_lvl_{category}_{scrape_date}.csv"))
+        
+        #Merchant Level Prices, AGGREGATE Level 
+        D_mlp_AGG_ss <- retail_dataset %>%
+          filter(category_name == category) %>%
+          group_by(corrected_state, scrape_date, slug, phone_number, category_name, license_status, deliv_or_storefront) %>%
+          summarize(observations = n(),
+                    min_price = min(ppg),
+                    mean_price = mean(ppg),
+                    median_price = median(ppg),
+                    max_price = max(ppg),
+                    std_dev = sd(ppg))
+        write_csv(D_mlp_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/D_mlp_AGG_{category}_{scrape_date}.csv"))
+        
+        #Summary of the merchant-level summaries (qty level)
+        E_sum_of_mchts_qty_lvl_ss <- D_mlp_qty_lvl_ss %>%
+          group_by(corrected_state, scrape_date, category_name, fixed_grams) %>%
+          summarize(observations = n(),
+                    min_mean = mean(min_price),
+                    min_median = median(min_price),
+                    mean_mean = mean(mean_price),
+                    mean_median = median(mean_price),
+                    max_mean = mean(max_price),
+                    max_median = median(max_price)
+          )
+        write_csv(E_sum_of_mchts_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/E_sum_of_mchts_qty_lvl_{category}_{scrape_date}.csv"))
+        
+        #Summary of the merchant-level summaries (Aggregate level)
+        E_sum_of_mchts_AGG_ss <- D_mlp_AGG_ss %>%
+          group_by(corrected_state, scrape_date, category_name) %>%
+          summarize(observations = n(),
+                    min_mean = mean(min_price),
+                    min_median = median(min_price),
+                    mean_mean = mean(mean_price),
+                    mean_median = median(mean_price),
+                    max_mean = mean(max_price),
+                    max_median = median(max_price)
+          )
+        write_csv(E_sum_of_mchts_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/E_sum_of_mchts_AGG_{category}_{scrape_date}.csv"))
+        
+        
        }
-  
+
     }
 
-
+rm(df_list)
+rm()
 }
