@@ -5,10 +5,47 @@
 #Objective: Clean and prepare Weedmaps data scrape to generate disctinct datasets for
 #           future econometric and statistical analyses
 
+rm(list = ls(all.names = TRUE)) 
+
 ######### User Input 
 
 #(INPUT Scrape Dates HERE)
-scrape_dates <- c("12_01_2019")
+scrape_dates <- c("12_01_2019",
+                  "06_03_2021"
+                  # "01_01_2020",
+                  # "05_28_2020",
+                  # "07_18_2020",
+                  # "09_06_2020",	
+                  # "10_24_2020",
+                  # "02_06_2021",
+                  # "06_03_2021",
+                  # "07_25_2020",
+                  # "09_12_2020",
+                  # "10_31_2020",
+                  # "03_01_2020",
+                  # "06_12_2020",
+                  # "08_01_2020",
+                  # "09_19_2020",
+                  # "11_07_2020",
+                  # "04_06_2020",
+                  # "06_19_2020",
+                  # "08_08_2020",
+                  # "09_26_2020",
+                  # "11_14_2020",
+                  # "04_13_2020",
+                  # "06_26_2020",
+                  # "08_15_2020",
+                  # "10_03_2020",
+                  # # "12_01_2019",
+                  # "04_20_2020",
+                  # "07_03_2020",
+                  # "08_22_2020",
+                  # "10_10_2020",
+                  # "04_26_2020",
+                  # "07_11_2020",
+                  # "08_29_2020",
+                  # "10_17_2020"
+                  )
 
 #(INPUT path of data scrapes here)
 data_path <- "/Users/rsaposhnik/Documents/AIC/data"
@@ -83,6 +120,8 @@ rm(county_crosswalk)
 
 for (scrape_date in scrape_dates) {
   
+  scrape_date
+  
 ### SECTION A - Merchant Information (Storefront Dispensaries and Delivery Dispensaries)
 # A1: LOAD IN DISPENSARY (MERCHANT) DETAILS FOR DELIV AND STOREFRONT -----------------------------------------------------
 
@@ -117,7 +156,6 @@ mapped_dispensaries <- st_join(disp_lat_lon, df_county_subs, join = st_within) %
   select(id_for_merge, county_name)
 
 rm(disp_lat_lon)
-rm(df_county_subs)
 #Remove geometry
 mapped_dispensaries <- st_set_geometry(mapped_dispensaries, NULL)
 
@@ -265,7 +303,7 @@ all_dispensary_info <- all_dispensary_info %>%
   filter(dupe == FALSE)
 
 ###########Export Merchant Dataset
-write_xlsx(all_dispensary_info,glue("{data_path}/datasets/cleaned_merchant_data/{scrape_date}.xlsx"))
+write_xlsx(all_dispensary_info,glue("{data_path}/datasets/cleaned_merchant_data/US_cannabis_merchants_weedmaps_{scrape_date}.xlsx"))
 
 ############ Re-arrange data for merge onto pricing dataset
 
@@ -417,9 +455,9 @@ df_retail_items <- df_retail_items %>%
          grams = case_when( grams == "1" ~ 1.0 ,
                             grams == "2" ~ 2.0 ,
                             grams == "1/2" ~ 0.5 ,
-                            FALSE ~ NaN)
-  )
-
+                            FALSE ~ NaN),
+         grams_per_eigth = as.double(grams_per_eigth)
+  ) 
 ############## Unify Gram Variable
 
 # For those with n/a in the "grams" field, but a numerical value in "ounces" field, we
@@ -793,11 +831,10 @@ df_retail_items <- df_retail_items %>%
   
 
 ### B12[EXPORT]: Export Final Scrape Date Dataset Build of all Deliv/Storefront Prices  -----------------------------------------------------
-write_csv(df_retail_items, glue("{data_path}/datasets/cleaned_price_data/{scrape_date}.csv"))
+write_csv(df_retail_items, glue("{data_path}/datasets/cleaned_price_data/US_cannabis_retail_items_prices_weedmaps_{scrape_date}.csv"))
 
 #remove all irrelevant datasets 
 rm(all_dispensary_info,
-   df_county_subs,
    df_dispensaries)
 
 
@@ -827,6 +864,13 @@ for (retail_dataset in df_list) {
                             "deduped")
     
         ### QUANTITY LEVEL STATS (SEPARATED BY FIXED GRAMS)
+        
+        
+        
+        ####
+        ####
+        #AAAAAAAA
+        
         #Lic vs. Unlic
         A_qty_lvl_ss <- retail_dataset %>%
         filter(category_name == category) %>%
@@ -838,9 +882,19 @@ for (retail_dataset in df_list) {
                  max_price = max(ppg),
                  std_dev = sd(ppg)
         )
-
+        
+        #write to CSV (folders separated by dupes)
         write_csv(A_qty_lvl_ss,
-                  glue("{data_path}/datasets/summary_stats/{dupe_type}/A_qty_lvl_{category}_{scrape_date}.csv"))
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/A_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(A_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/A_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        
+        ####
+        ####
+        #BBBBBBB
         
         # Deliv vs. Storefront
         B_qty_lvl_ss <- retail_dataset %>%
@@ -855,8 +909,16 @@ for (retail_dataset in df_list) {
         )
         
         write_csv(B_qty_lvl_ss,
-                  glue("{data_path}/datasets/summary_stats/{dupe_type}/B_qty_lvl_{category}_{scrape_date}.csv"))
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/B_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
         
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(B_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/B_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        
+        ####
+        ####
+        #CCCCCCCC
         
         # Deliv vs. Storefront AND Lic/Unlic
         C_qty_lvl_ss <- retail_dataset %>%
@@ -871,10 +933,22 @@ for (retail_dataset in df_list) {
         )
        
          write_csv(C_qty_lvl_ss,
-                  glue("{data_path}/datasets/summary_stats/{dupe_type}/C_qty_lvl_{category}_{scrape_date}.csv"))
-        
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/C_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+         
+         #write to CSV (folders separated by dates, then by dupes)
+         write_csv(C_qty_lvl_ss,
+                   glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/C_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+         
+         
         
         #### AGGREGATE LEVEL STATS (PPG ACROSS ALL PACKAGE SIZES OF FIXED GRAMS)
+         
+
+         
+       ####
+       ####
+       #AAAAAAAA
+         
         # Lic vs. Unlic
         A_AGG_ss <- retail_dataset %>%
         filter(category_name == category) %>%
@@ -888,8 +962,15 @@ for (retail_dataset in df_list) {
         )
         
         write_csv(A_AGG_ss,
-                  glue("{data_path}/datasets/summary_stats/{dupe_type}/A_AGG_{category}_{scrape_date}.csv"))
-      
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/A_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(A_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/A_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        ####
+        ####
+        #BBBBBBBBBB
         
         # Deliv vs. Storefront
         B_AGG_ss <- retail_dataset %>%
@@ -904,8 +985,16 @@ for (retail_dataset in df_list) {
         )
        
         write_csv(B_AGG_ss,
-                  glue("{data_path}/datasets/summary_stats/{dupe_type}/B_AGG_{category}_{scrape_date}.csv"))
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/B_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
         
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(B_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/B_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        
+        ####
+        ####
+        #CCCCCCCCCCC
         
         # Deliv vs. Storefront AND Lic/Unlic
         C_AGG_ss <- retail_dataset %>%
@@ -919,9 +1008,15 @@ for (retail_dataset in df_list) {
                 std_dev = sd(ppg)
         )
         write_csv(C_AGG_ss,
-                  glue("{data_path}/datasets/summary_stats/{dupe_type}/C_AGG_{category}_{scrape_date}.csv"))
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/C_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
         
-
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(C_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/C_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        ####
+        ####
+        #DDDDDDDD
         #### MERCHANT LEVEL STATS (PPG ACROSS ALL PACKAGE SIZES OF FIXED GRAMS)
         
         #Merchant Level Prices, QUANTITY Level 
@@ -936,7 +1031,11 @@ for (retail_dataset in df_list) {
                     std_dev = sd(ppg))
         
         write_csv(D_mlp_qty_lvl_ss,
-                  glue("{data_path}/datasets/summary_stats/{dupe_type}/D_mlp_qty_lvl_{category}_{scrape_date}.csv"))
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/D_mlp_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(D_mlp_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/D_mlp_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
         
         #Merchant Level Prices, AGGREGATE Level 
         D_mlp_AGG_ss <- retail_dataset %>%
@@ -948,11 +1047,19 @@ for (retail_dataset in df_list) {
                     median_price = median(ppg),
                     max_price = max(ppg),
                     std_dev = sd(ppg))
+        
         write_csv(D_mlp_AGG_ss,
-                  glue("{data_path}/datasets/summary_stats/{dupe_type}/D_mlp_AGG_{category}_{scrape_date}.csv"))
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/D_mlp_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(D_mlp_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/D_mlp_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #### E - LIC
         
         #Summary of the merchant-level summaries (qty level)
-        E_sum_of_mchts_qty_lvl_ss <- D_mlp_qty_lvl_ss %>%
+        E_LIC_sum_of_mchts_qty_lvl_ss <- D_mlp_qty_lvl_ss %>%
+          filter(license_status == "licensed") %>%
           group_by(corrected_state, scrape_date, category_name, fixed_grams) %>%
           summarize(observations = n(),
                     min_mean = mean(min_price),
@@ -962,11 +1069,16 @@ for (retail_dataset in df_list) {
                     max_mean = mean(max_price),
                     max_median = median(max_price)
           )
-        write_csv(E_sum_of_mchts_qty_lvl_ss,
-                  glue("{data_path}/datasets/summary_stats/{dupe_type}/E_sum_of_mchts_qty_lvl_{category}_{scrape_date}.csv"))
+        write_csv(E_LIC_sum_of_mchts_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/E_LIC_sum_of_mchts_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(E_LIC_sum_of_mchts_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/E_LIC_sum_of_mchts_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
         
         #Summary of the merchant-level summaries (Aggregate level)
-        E_sum_of_mchts_AGG_ss <- D_mlp_AGG_ss %>%
+        E_LIC_sum_of_mchts_AGG_ss <- D_mlp_AGG_ss %>%
+          filter(license_status == "licensed") %>%
           group_by(corrected_state, scrape_date, category_name) %>%
           summarize(observations = n(),
                     min_mean = mean(min_price),
@@ -976,9 +1088,96 @@ for (retail_dataset in df_list) {
                     max_mean = mean(max_price),
                     max_median = median(max_price)
           )
-        write_csv(E_sum_of_mchts_AGG_ss,
-                  glue("{data_path}/datasets/summary_stats/{dupe_type}/E_sum_of_mchts_AGG_{category}_{scrape_date}.csv"))
         
+        write_csv(E_LIC_sum_of_mchts_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/E_LIC_sum_of_mchts_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(E_LIC_sum_of_mchts_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/E__LIC_sum_of_mchts_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #### E - UNLIC
+        
+        #Summary of the merchant-level summaries (qty level)
+        E_UNLIC_sum_of_mchts_qty_lvl_ss <- D_mlp_qty_lvl_ss %>%
+          filter(license_status == "unlicensed") %>%
+          group_by(corrected_state, scrape_date, category_name, fixed_grams) %>%
+          summarize(observations = n(),
+                    min_mean = mean(min_price),
+                    min_median = median(min_price),
+                    mean_mean = mean(mean_price),
+                    mean_median = median(mean_price),
+                    max_mean = mean(max_price),
+                    max_median = median(max_price)
+          )
+        write_csv(E_UNLIC_sum_of_mchts_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/E_UNLIC_sum_of_mchts_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(E_UNLIC_sum_of_mchts_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/E_UNLIC_sum_of_mchts_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #Summary of the merchant-level summaries (Aggregate level)
+        E_UNLIC_sum_of_mchts_AGG_ss <- D_mlp_AGG_ss %>%
+          filter(license_status == "unlicensed") %>%
+          group_by(corrected_state, scrape_date, category_name) %>%
+          summarize(observations = n(),
+                    min_mean = mean(min_price),
+                    min_median = median(min_price),
+                    mean_mean = mean(mean_price),
+                    mean_median = median(mean_price),
+                    max_mean = mean(max_price),
+                    max_median = median(max_price)
+          )
+        
+        write_csv(E_UNLIC_sum_of_mchts_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/E_UNLIC_sum_of_mchts_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(E_UNLIC_sum_of_mchts_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/E_UNLIC_sum_of_mchts_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        ####
+        ####
+        #FFFFFFFFFFFFF
+        
+        #Overall Summary Stats (qty breakout)
+        F_qty_lvl_ss <- retail_dataset %>%
+          filter(category_name == category) %>%
+          group_by(corrected_state, scrape_date, category_name, fixed_grams) %>%
+          summarize(observations = n(),
+                    min_price = min(ppg),
+                    mean_price = mean(ppg),
+                    median_price = median(ppg),
+                    max_price = max(ppg),
+                    std_dev = sd(ppg)
+          )
+        
+        write_csv(F_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/F_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(F_qty_lvl_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/F_qty_lvl_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #Overall Summary Stats (all quantities)
+        F_AGG_ss <- retail_dataset %>%
+          filter(category_name == category) %>%
+          group_by(corrected_state, scrape_date, category_name) %>%
+          summarize(observations = n(),
+                    min_price = min(ppg),
+                    mean_price = mean(ppg),
+                    median_price = median(ppg),
+                    max_price = max(ppg),
+                    std_dev = sd(ppg)
+          )
+        
+        write_csv(F_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/{dupe_type}/F_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
+        
+        #write to CSV (folders separated by dates, then by dupes)
+        write_csv(F_AGG_ss,
+                  glue("{data_path}/datasets/summary_stats/by_date/{dupe_type}/{scrape_date}/F_AGG_{category}_{dupe_type}_{scrape_date}.csv"))
         
        }
 
