@@ -11,40 +11,41 @@ rm(list = ls(all.names = TRUE))
 
 #(INPUT Scrape Dates HERE)
 scrape_dates <- c("12_01_2019",
-                  "06_03_2021"
-                  # "01_01_2020",
-                  # "05_28_2020",
-                  # "07_18_2020",
-                  # "09_06_2020",	
-                  # "10_24_2020",
-                  # "02_06_2021",
-                  # "06_03_2021",
-                  # "07_25_2020",
-                  # "09_12_2020",
-                  # "10_31_2020",
-                  # "03_01_2020",
-                  # "06_12_2020",
-                  # "08_01_2020",
-                  # "09_19_2020",
-                  # "11_07_2020",
-                  # "04_06_2020",
-                  # "06_19_2020",
-                  # "08_08_2020",
-                  # "09_26_2020",
-                  # "11_14_2020",
-                  # "04_13_2020",
-                  # "06_26_2020",
-                  # "08_15_2020",
-                  # "10_03_2020",
-                  # # "12_01_2019",
-                  # "04_20_2020",
-                  # "07_03_2020",
-                  # "08_22_2020",
-                  # "10_10_2020",
-                  # "04_26_2020",
-                  # "07_11_2020",
-                  # "08_29_2020",
-                  # "10_17_2020"
+                  "06_03_2021",
+                  "01_01_2020",
+                  "05_28_2020",
+                  "07_18_2020",
+                  "09_06_2020",
+                  "10_24_2020",
+                  "02_06_2021",
+                  "06_03_2021",
+                  "07_25_2020",
+                  "09_12_2020",
+                  "10_31_2020",
+                  "03_01_2020",
+                  "06_12_2020",
+                  "08_01_2020",
+                  "09_19_2020",
+                  "11_07_2020",
+                  "04_06_2020",
+                  "06_19_2020",
+                  "08_08_2020",
+                  "09_26_2020",
+                  "11_14_2020",
+                  "04_13_2020",
+                  "06_26_2020",
+                  "08_15_2020",
+                  "10_03_2020",
+                  "04_20_2020",
+                  "07_03_2020",
+                  "08_22_2020",
+                  "10_10_2020",
+                  "04_26_2020",
+                  "07_11_2020",
+                  "08_29_2020",
+                  "10_17_2020",
+                  "04_24_2021",
+                  "05_22_2021"
                   )
 
 #(INPUT path of data scrapes here)
@@ -463,17 +464,16 @@ df_retail_items <- df_retail_items %>%
 # For those with n/a in the "grams" field, but a numerical value in "ounces" field, we
 # convert ounces to grams. For all other observations, accept grams as true.
 
+#Correct entries where grams per eighth is equal to 4 or 5 
+
 df_retail_items <- df_retail_items %>%
-  mutate(fixed_grams = case_when( is.na(grams) & !is.na(ounces) ~ 28.35 * ounces,
+  mutate(fixed_grams = case_when( grams_per_eigth == 4 & ounces == 0.125 ~ 4,
+                                  grams_per_eigth == 5 & ounces == 0.125 ~ 5,
+                                  is.na(grams) & !is.na(ounces) ~ 28.35 * ounces,
                                   !is.na(grams) & is.na(ounces) ~ grams,
-                                  is.na(grams) & ounces == 0.125 & grams_per_eigth != 3.5 ~ grams_per_eigth,
                                   FALSE ~ NaN
   ))
-
-
-
-
-
+  
 ### B5: Add Flags to DataSet in order to (1) clean noisy data; and (2) refine categorizations of flower and concentrates  -----------------------------------------------------
 
 ############## Create Flags for Irrelevant Keywords & Symbols
